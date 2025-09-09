@@ -10,7 +10,7 @@ st.markdown("Enter your house details to get an estimated price for your house."
 # Loading trained model
 @st.cache_resource
 def load_model():
-    return joblib.load('notebooks/model/random_forest_model.pkl')
+    return joblib.load('notebooks/random_forest_model.pkl')
 
 model = load_model()
 
@@ -65,3 +65,4 @@ if st.button("Predict"):
     prediction = model.predict(input_dict)[0]
 
     st.success(f"Estimated House Price: ${prediction:,.2f}")
+
