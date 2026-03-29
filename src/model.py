@@ -1,21 +1,57 @@
+import numpy as np
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
+from sklearn.pipeline import Pipeline
 from joblib import dump, load
 
-def train_random_forest(X_train, y_train, n_estimators=1000, random_state=15):
+def split_train_test(X, y, test_size=0.25, random_state=42):
     """
-    Train a Random Forest Regressor.
+    Split features and target into training and testing sets.
     """
-    model = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
-    model.fit(X_train, y_train)
-    return model
+    return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-def train_decision_tree(X_train, y_train, random_state=15, max_depth=21, min_samples_split=14):
-    """
-    Train a Decision Tree Regressor.
-    """
-    model = DecisionTreeRegressor(random_state=random_state, max_depth=max_depth, min_samples_split=min_samples_split)
-    model.fit(X_train, y_train)
+def log_transform_func(X):
+    # Use np.log1p for numerical stability (handles zero values)
+    return np.log1p(X)
+
+# You might also want an inverse function for regression targets
+def inverse_log_transform_func(X):
+    return np.expm1(X)
+
+def make_log_transformer(func, inverse_func):
+    log_transformer = FunctionTransformer(
+        func=log_transform_func,
+        inverse_func=inverse_log_transform_func,
+        validate=True
+    )
+    return log_transformer
+
+def make_preprocessor(transformer, transform_features):
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('log_transform', transformer, transform_features)
+        ],
+        remainder='passthrough'
+    )
+    return preprocessor
+
+def make_pipeline(preprocessor):
+    pipeline = Pipeline(
+        steps=[
+            ('preprocessor', preprocessor),
+            ('regressor', RandomForestRegressor(n_estimators=100, max_depth=30))
+        ]
+    )
+    return pipeline
+
+def make_model(pipeline, X_train, y_train):
+    model = TransformedTargetRegressor(
+        regressor=pipeline,
+        func=np.log1p,
+        inverse_func=np.expm1
+    )
     return model
 
 def save_model(model, filepath):

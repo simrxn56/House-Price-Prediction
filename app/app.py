@@ -1,5 +1,20 @@
 import pandas as pd
 import streamlit as st
+
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
+from sklearn.pipeline import Pipeline
+
+from src.data_loader import load_data, save_data
+from src.model import split_train_test, log_transform_func, inverse_log_transform_func, make_log_transformer, make_preprocessor, make_pipeline, make_model, save_model, load_model
+from src.evaluate import evaluate_model, plot_predictions, plot_feature_importance
+
 import joblib
 
 # Setting up header
@@ -10,59 +25,42 @@ st.markdown("Enter your house details to get an estimated price for your house."
 # Loading trained model
 @st.cache_resource
 def load_model():
-    return joblib.load('notebooks/random_forest_model.pkl')
+    return joblib.load('notebooks/model/model.pkl')
 
 model = load_model()
 
 # Getting input from user
-bedrooms = st.slider("Bedrooms", min_value=0, max_value=10, value=3)
-bathrooms = st.slider("Bathrooms", min_value=0.0, max_value=10.0, step=0.25, value=2.0)
-sqft_living = st.slider("Living Area (sqft)", min_value=500, max_value=5000, value=1800, step=100)
-sqft_lot = st.slider("Lot Size (sqft)", min_value=500, max_value=15000, value=4000, step=100)
-floors = st.slider("Floors", min_value=0.0, max_value=4.0, value=1.0, step=0.5)
-waterfront = st.selectbox("Waterfront", [0, 1])
-view = st.slider("View", min_value=0, max_value=4, value=1)
-condition = st.slider("Condition", min_value=0, max_value=5, value=3)
-sqft_above = st.slider("Above Ground Area (sqft)", min_value=500, max_value=5000, value=2000, step=100)
-sqft_basement = st.slider("Basement Area (sqft)", min_value=0, max_value=3000, value=500)
-yr_built = st.slider("Year Built", min_value=1900, max_value=2025, value=1990)
-yr_renovated = st.slider("Year Renovated", min_value=1900, max_value=2025, value=0)
-
-cities = ['Algona', 'Auburn', 'Beaux Arts Village', 'Bellevue', 'Black Diamond',
-          'Bothell', 'Burien', 'Carnation', 'Clyde Hill', 'Covington', 'Des Moines',
-          'Duvall', 'Enumclaw', 'Fall City', 'Federal Way', 'Inglewood-Finn Hill',
-          'Issaquah', 'Kenmore', 'Kent', 'Kirkland', 'Lake Forest Park',
-          'Maple Valley', 'Medina', 'Mercer Island', 'Milton', 'Newcastle',
-          'Normandy Park', 'North Bend', 'Pacific', 'Preston', 'Ravensdale',
-          'Redmond', 'Renton', 'Sammamish', 'SeaTac', 'Seattle', 'Shoreline',
-          'Skykomish', 'Snoqualmie', 'Snoqualmie Pass', 'Tukwila', 'Vashon',
-          'Woodinville', 'Yarrow Point']
-
-city = st.selectbox("City", cities)
+grade_of_the_house = st.slider("Grade of the House", min_value=1, max_value=15, value=3)
+living_area = st.slider("Living Area (sqft)", min_value=200.0, max_value=15000.0, value=1800.0, step=10.0)
+living_area_renov = st.slider("Living Area after Renovation (sqft)", min_value=200.0, max_value=15000.0, value=1800.0, step=10.0)
+bathrooms = st.slider("Number of Bathrooms", min_value=1, max_value=10, value=3, step=1)
+area_excluding_basement = st.slider("Area of the House (excluding basement)", min_value=200.0, max_value=15000.0, value=1800.0, step=10.0)
+lat = st.number_input(
+    label="Enter Latitude",
+    min_value=-90.0,
+    max_value=90.0,
+    value=31.3723,
+    format="%.4f"
+)
+floors = st.slider("Number of Floors", min_value=1, max_value=5, value=1)
+bedrooms = st.slider("Number of Bedrooms", min_value=0, max_value=50, value=3, step=1)
+views = st.slider("Number of Views", min_value=0, max_value=5, value=2, step=1)
 
 # Creating input for model
 input_dict = pd.DataFrame({
-    'bedrooms': [bedrooms],
-    'bathrooms': [bathrooms],
-    'sqft_living': [sqft_living],
-    'sqft_lot': [sqft_lot],
-    'floors': [floors],
-    'waterfront': [waterfront],
-    'view': [view],
-    'condition': [condition],
-    'sqft_above': [sqft_above],
-    'sqft_basement': [sqft_basement],
-    'yr_built': [yr_built],
-    'yr_renovated': [yr_renovated],
+    'grade of the house': [grade_of_the_house],
+    'living area': [living_area],
+    'living_area_renov': [living_area_renov],
+    'number of bathrooms': [bathrooms],
+    'Area of the house(excluding basement)': [area_excluding_basement],
+    'Lattitude': [lat],
+    'number of floors': [floors],
+    'number of bedrooms': [bedrooms],
+    'number of views': [views],
 })
-
-for c in cities:
-    col = f'city_{c}'
-    input_dict[col] = [1 if c == city else 0]
 
 # Making Prediction
 if st.button("Predict"):
-    prediction = model.predict(input_dict)[0]
-
-    st.success(f"Estimated House Price: ${prediction:,.2f}")
-
+    prediction_log = model.predict(input_dict)
+    prediction = model.inverse_func(prediction_log)
+    st.success(f"Estimated House Price: ${prediction[0]:.2f}")
